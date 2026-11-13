@@ -11,8 +11,8 @@ class Introduction extends Component {
   }
 
   updateCookie(name, value) {
-    const expires = ";SameSite=Strict;expires=" + new Date().setFullYear(new Date().getFullYear() + 10)
-    document.cookie = name + "=" + value + expires
+    const attributes = ";SameSite=Strict;max-age=" + 10 * 365 * 24 * 60 * 60 // keep for ten years
+    document.cookie = name + "=" + value + attributes
     this.setState({rerender: this.state.rerender + 1})
   }
 

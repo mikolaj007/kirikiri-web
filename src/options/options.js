@@ -89,15 +89,15 @@ class Options extends Component {
   setSaveState(val) {
     this.setState(val)
 
-    const expires = ";SameSite=Strict;expires=" + new Date().setFullYear(new Date().getFullYear() + 10)
+    const attributes = ";SameSite=Strict;max-age=" + 10 * 365 * 24 * 60 * 60 // keep for ten years
     const state = Object.assign({}, this.state, val)
-    document.cookie = "bgm=" + state.bgm + expires
-    document.cookie = "voice=" + state.voice + expires
-    document.cookie = "sound=" + state.sound + expires
-    document.cookie = "bgmVersion=" + state.bgmVersion + expires
-    document.cookie = "lang=" + state.lang + expires
-    document.cookie = "mature=" + state.mature + expires
-    document.cookie = "h=" + state.h + expires
+    document.cookie = "bgm=" + state.bgm + attributes
+    document.cookie = "voice=" + state.voice + attributes
+    document.cookie = "sound=" + state.sound + attributes
+    document.cookie = "bgmVersion=" + state.bgmVersion + attributes
+    document.cookie = "lang=" + state.lang + attributes
+    document.cookie = "mature=" + state.mature + attributes
+    document.cookie = "h=" + state.h + attributes
   }
 
   setAutoplay() {
