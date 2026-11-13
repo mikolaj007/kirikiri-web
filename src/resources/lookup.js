@@ -28,18 +28,17 @@ export const LocateScript = (name, lang) => {
   return "/static/scripts/" + lang + (hScriptsMap[name] ? "/h/" : "/") + name + ".ks.gz"
 }
 
+// versions to try for each setting, in order: v = vita, p = ps2, c = classic, o = original
+// if none of them exists for a track, any version of it is used
+const BGM_PREFERENCE = {vita: "vpo", ps2: "po", classic: "co", original: "o"}
+
 export const LocateBGM = (name, version) => {
-  let shortV = version === "vita" ? "v" : version === "ps2" ? "p" : version === "classic" ? "c" : "o" // original
   const possible = BGM[name]
   if (!possible) {
     return
   }
-  while (!possible.includes(shortV)) { // if requested version is not available
-    if (shortV === "o") { // if desired was original
-      shortV = possible.charAt(0) // return any valid version
-    }
-    shortV = shortV === "v" ? "p" : "o" // return next-preferred valid version v->p->o & c->o
-  }
+  const preferred = BGM_PREFERENCE[version] || BGM_PREFERENCE.original
+  const shortV = [...preferred].find(v => possible.includes(v)) || possible.charAt(0)
   const longV = shortV === "v" ? "vita" : shortV === "p" ? "ps2" : shortV === "c" ? "classic" : "original"
   return "/static/bgm/" + longV + "/" + name
 }
