@@ -17,6 +17,61 @@ const evalMacroValue = (value, mp) => {
   return cond === undefined ? undefined : mp[cond ? choice[2] : choice[3]]
 }
 
+// [if] blocks are tracked on gameState.ifStack, one entry per open block:
+//   run:  whether the branch being read runs; "all" if its condition can't be told, then every branch runs
+//   done: whether a branch of the block already ran, so the [elsif] and [else] after it don't
+// returns true if the tag was [if], [elsif], [else] or [endif], which it handles
+const handleIf = (tokens, gameState, tag) => {
+  const command = tag.command.toLowerCase()
+  if (!["if", "elsif", "else", "endif"].includes(command)) {
+    return false
+  }
+  const stack = gameState.ifStack || (gameState.ifStack = [])
+  // in a macro, conditions on anything but the settings can't be told
+  const holds = () => EvalCondition(tag.args.exp || "", {sf: gameState.sf}, !!tag.depth)
+
+  if (command === "if") {
+    if (isSkipping(stack)) {
+      stack.push({run: false, done: true}) // inside a branch that doesn't run, so none of this block runs
+      return true
+    }
+    const result = holds()
+    stack.push(result === undefined ? {run: "all"} : {run: result, done: result})
+    tokens.push(tag)
+    return true
+  }
+
+  const block = stack[stack.length - 1]
+  if (!block) {
+    return true // no [if] to go with
+  }
+  const outerSkipping = isSkipping(stack.slice(0, -1))
+  if (command === "endif") {
+    stack.pop()
+  } else if (block.run !== "all" && !outerSkipping) {
+    const result = command === "else" || holds()
+    block.run = !block.done && result !== false
+    block.done = block.done || block.run
+  }
+  if (block.run === "all" && !outerSkipping) {
+    tokens.push(tag)
+  }
+  return true
+}
+
+// whether any of these [if] blocks is in a branch that doesn't run
+const isSkipping = ifStack => ifStack.some(block => block.run === false)
+
+// moves past the end of an [iscript] block
+const skipScript = stackFrame => {
+  const scriptRegex = /[^]*?\r?\n(?:@endscript|\[endscript])$/my
+  scriptRegex.lastIndex = stackFrame.fileIndex
+  if (!scriptRegex.exec(stackFrame.file)) {
+    throw new Error("unexpected end of file while skipping script")
+  }
+  stackFrame.fileIndex = scriptRegex.lastIndex
+}
+
 // InterpretCommand interprets the given command, and pauses execution of the
 const InterpretCommand = (tokens, gameState, tag) => {
   const stackFrame = gameState.stackFrame
@@ -31,6 +86,16 @@ const InterpretCommand = (tokens, gameState, tag) => {
       macroBuilder.macro.push(tag)
     }
     return false
+  }
+
+  if (tag.type !== "t" && handleIf(tokens, gameState, tag)) {
+    return false
+  }
+  if (isSkipping(gameState.ifStack || [])) {
+    if (tag.type !== "t" && tag.command.toLowerCase() === "iscript") {
+      skipScript(stackFrame) // the script's body isn't KAG, so skip over it even here
+    }
+    return false // inside an [if] branch that doesn't run
   }
 
   if (tag.type === "t") {
@@ -135,17 +200,9 @@ const InterpretCommand = (tokens, gameState, tag) => {
       }
       return true
     case "iscript":
-      // skip to end of script tag
-      const scriptRegex = /[^]*?\r?\n(?:@endscript|\[endscript])$/my
-      const scriptStart = scriptRegex.lastIndex = stackFrame.fileIndex
-      if (scriptRegex.exec(stackFrame.file)) {
-        stackFrame.fileIndex = scriptRegex.lastIndex
-        const scriptEnd = scriptRegex.lastIndex
-        // console.log(stackFrame.file.substring(scriptStart, scriptEnd))
-        tokens.push(Object.assign({file: stackFrame.file, scriptStart, scriptEnd}, tag))
-      } else {
-        throw new Error("unexpected end of file while skipping script")
-      }
+      const scriptStart = stackFrame.fileIndex
+      skipScript(stackFrame)
+      tokens.push(Object.assign({file: stackFrame.file, scriptStart, scriptEnd: stackFrame.fileIndex}, tag))
       break
     case "macro":
       // start building macro

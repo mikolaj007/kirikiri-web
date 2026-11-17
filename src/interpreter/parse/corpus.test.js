@@ -15,6 +15,9 @@ const timeout = 15 * 60 * 1000
 
 const read = storage => fs.readFileSync(path.join(dir, LocateScript(storage, "eng").replace(/^\/static\/scripts\//, "").replace(/\.gz$/, "")), "utf8")
 
+// settings as the reader passes them to the interpreter
+const settings = (text, mature) => ({gtext: text, gmature: mature ? 1 : 0, ghentai: 0, rinGermanChant: 0})
+
 // collects the scroll sections and the nested script loads from rendered output
 const collect = (element, out) => {
   if (!element || typeof element !== "object") {
@@ -34,8 +37,21 @@ const collect = (element, out) => {
   collect(props.children, out)
 }
 
+const textOf = element => {
+  if (element === null || element === undefined || typeof element === "boolean") {
+    return ""
+  }
+  if (typeof element !== "object") {
+    return String(element)
+  }
+  if (Array.isArray(element)) {
+    return element.map(textOf).join("")
+  }
+  return textOf((element.props || {}).children)
+}
+
 // renders a scene the way ScriptLoader does, following [call]s into other scripts
-const renderScene = name => {
+const renderScene = (name, sf) => {
   const tokens = []
   const out = {sections: [], calls: []}
   const run = (gameState, target, renderState) => {
@@ -45,16 +61,18 @@ const renderScene = name => {
     collect(Render(added, renderState, () => {}, 0), out)
   }
   const file = read(name)
-  run({macros: {}, stackFrame: {storage: "マクロ", file: read("マクロ"), fileIndex: 0, returnFrame: {storage: name, file, fileIndex: 0}}})
+  run({macros: {}, sf, stackFrame: {storage: "マクロ", file: read("マクロ"), fileIndex: 0, returnFrame: {storage: name, file, fileIndex: 0}}})
+  const sources = [file]
   while (out.calls.length) {
     const call = out.calls.shift()
     const frame = call.gameState.stackFrame
     frame.storage = call.storage
     frame.file = read(call.storage)
     frame.fileIndex = 0
+    sources.push(frame.file)
     run(call.gameState, call.target, call.renderState)
   }
-  return {tokens, sections: out.sections}
+  return {tokens, sections: out.sections, source: sources.join("\n").replace(/\r/g, "")}
 }
 
 const isTag = token => token.type === "@" || token.type === "["
@@ -102,7 +120,7 @@ corpus("the real scripts", () => {
   const rendered = {}
   beforeAll(() => {
     sceneNames.forEach(name => {
-      rendered[name] = renderScene(name)
+      rendered[name] = renderScene(name, settings("classic", true))
     })
   }, timeout)
 
@@ -166,5 +184,67 @@ corpus("the real scripts", () => {
       }
     })
     expect(wrong.length + " wrong: " + wrong.slice(0, 20).join(" | ")).toBe("0 wrong: ")
+  })
+})
+
+// [if] blocks whose branches hold different text: [{name, condition, texts: [first line of each branch]}]
+const ifBlocks = (name, source) => {
+  const blocks = []
+  const lines = source.split("\n")
+  const plain = source.replace(/\[[^\]]*\]/g, "")
+  const firstText = branch => (branch.find(line => line.trim() && !/^[@;*[]/.test(line)) || "").replace(/\[[^\]]*\]/g, "").trim().slice(0, 16)
+  for (let i = 0; i < lines.length; i++) {
+    const match = /^@if exp="([^"]*)"/.exec(lines[i])
+    if (!match) {
+      continue
+    }
+    const branches = [[]]
+    let j = i + 1
+    for (; j < lines.length && !/^@(endif|if)\b/.test(lines[j]); j++) {
+      if (/^@(else|elsif)\b/.test(lines[j])) {
+        branches.push([])
+      } else {
+        branches[branches.length - 1].push(lines[j])
+      }
+    }
+    const texts = branches.map(firstText)
+    // a branch's text tells which branch ran only if it appears nowhere else in the scene
+    const distinct = texts.every(text => text && plain.split(text).length === 2)
+    if (texts.length > 1 && distinct) {
+      blocks.push({name, condition: match[1], texts})
+    }
+    i = j
+  }
+  return blocks
+}
+
+corpus("[if] blocks", () => {
+  const cases = [
+    ["classic", true, /sf\.(gmature|gtext)/],
+    ["classic", false, /sf\.gmature/],
+    ["realta", true, /sf\.gtext/],
+    ["mixed", true, /sf\.gtext/],
+  ]
+  cases.forEach(([text, mature, relevant]) => {
+    test("show one branch with text " + text + ", mature " + (mature ? "on" : "off"), () => {
+      const doubled = []
+      let checked = 0
+      sceneNames.forEach(name => {
+        const raw = read(name).replace(/\r/g, "")
+        if (!relevant.test(raw)) {
+          return
+        }
+        const {sections, source} = renderScene(name, settings(text, mature))
+        const shown = sections.map(section => textOf(section.children)).join("\n")
+        ifBlocks(name, source).filter(block => relevant.test(block.condition)).forEach(block => {
+          checked++
+          if (block.texts.filter(t => shown.includes(t)).length > 1) {
+            doubled.push(block.name + " [" + block.condition + "] " + JSON.stringify(block.texts))
+          }
+        })
+      })
+      expect(doubled.length + " doubled: " + doubled.slice(0, 20).join(" | ")).toBe("0 doubled: ")
+      expect(checked).toBeGreaterThan(100) // the check still sees enough blocks to mean something
+    }, timeout)
   })
 })

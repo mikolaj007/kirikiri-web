@@ -62,7 +62,7 @@ Tools for extracting & converting assets are in a separate repo, see https://git
 - The above text & animations are extracted from KiriKiri scripts, loaded by a separate, dedicated [Script Loader](./src/interpreter/script-loader.js) component, which performs a few logical steps:
 
     1. [Tokenize](./src/interpreter/parse/tokenize.js) - Reads in a \*.ks file and outputs tokens.
-    2. [Interpret](./src/interpreter/parse/interpreter.js) - Receives tokens from tokenizer and updates gamestate.
+    2. [Interpret](./src/interpreter/parse/interpreter.js) - Receives tokens from tokenizer and updates gamestate. Expands macros, and keeps only the `[if]` branches that match the reader's settings (text edition, mature, H, Rin's chant).
     3. [Render](./src/interpreter/parse/render.js) - Creates animation segments based on progression of the gamestate.
 
 - A [home page](./src/home/home.js) exists to support navigating the full visual novel, and includes:

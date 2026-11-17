@@ -20,7 +20,7 @@ class Reader extends Component {
   render() {
     const options = this.props.options
     return (
-      <ScrollWatcher key={options.lang}
+      <ScrollWatcher key={[options.lang, options.text, options.mature, options.h, options.germanChant].join()} // these change the scene's text
                      isOnTop={!options.showMenu && options.canAutoplay}>
         <Animation freezeFrame={!options.canAutoplay}/>
 

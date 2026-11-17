@@ -107,6 +107,40 @@ const Menu = props => <>
           </div>
         </div>
 
+        <div className="menu-line">
+          <div className="menu-property">Text</div>
+          <div className="menu-flex">
+            {[{k: "Classic", v: "classic"}, {k: "Réalta Nua", v: "realta"}, {k: "Mixed", v: "mixed"}].map(elem => (
+              <div className="menu-flex-item" key={elem.v}>
+                <label>
+                  <input type="radio"
+                         value={elem.v}
+                         checked={props.text === elem.v}
+                         onChange={e => props.setSaveState({text: e.target.value})}/>
+                  {elem.k}
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="menu-line">
+          <div className="menu-property">Rin's chant</div>
+          <div className="menu-flex">
+            {[{k: "Standard", v: false}, {k: "German", v: true}, {v: "none"}].map(elem => (
+              <div className="menu-flex-item" key={elem.v}>
+                {elem.k && <label>
+                  <input type="radio"
+                         value={elem.v}
+                         checked={props.germanChant === elem.v}
+                         onChange={e => props.setSaveState({germanChant: (e.target.value === "true")})}/>
+                  {elem.k}
+                </label>}
+              </div>
+            ))}
+          </div>
+        </div>
+
         <br/>
         <br/>
       </div>

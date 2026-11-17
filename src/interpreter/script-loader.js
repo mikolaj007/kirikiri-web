@@ -53,8 +53,11 @@ class ScriptLoader extends Component {
 
     if (!gameState) {
       // call macro first, and "return" to the specified storage
+      const options = this.props.options
       gameState = {
         macros: {},
+        // the game's settings that [if] blocks in the scripts test
+        sf: {gtext: options.text, gmature: options.mature ? 1 : 0, ghentai: options.h ? 1 : 0, rinGermanChant: options.germanChant ? 1 : 0},
         stackFrame: {storage: "マクロ", file: macroFile, fileIndex: 0, returnFrame: stackFrame},
       }
     }

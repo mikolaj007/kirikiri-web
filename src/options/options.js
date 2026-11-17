@@ -11,6 +11,8 @@ const getOptions = (s) => ({
   lang: s.lang,
   mature: s.mature,
   h: s.h,
+  text: s.text,
+  germanChant: s.germanChant,
   debugLevel: s.debugLevel,
 })
 
@@ -30,6 +32,8 @@ class Options extends Component {
     const lang = /lang=([^;]*)(?:;|$)/.exec(cookies) || {}
     const mature = /mature=([^;]*)(?:;|$)/.exec(cookies) || {}
     const h = /h=([^;]*)(?:;|$)/.exec(cookies) || {}
+    const text = /(?:^|; )text=([^;]*)(?:;|$)/.exec(cookies) || {}
+    const germanChant = /(?:^|; )germanChant=([^;]*)(?:;|$)/.exec(cookies) || {}
 
     this.state = {
       showMenu: false,
@@ -42,6 +46,8 @@ class Options extends Component {
       lang: lang[1] || "eng",
       mature: !(mature[1] === "false"),
       h: parseInt(h[1], 10) || 0,
+      text: ["classic", "realta", "mixed"].includes(text[1]) ? text[1] : "classic",
+      germanChant: germanChant[1] === "true",
     }
     this.state.options = getOptions(this.state)
   }
@@ -98,6 +104,8 @@ class Options extends Component {
     document.cookie = "lang=" + state.lang + expires
     document.cookie = "mature=" + state.mature + expires
     document.cookie = "h=" + state.h + expires
+    document.cookie = "text=" + state.text + expires
+    document.cookie = "germanChant=" + state.germanChant + expires
   }
 
   setAutoplay() {
