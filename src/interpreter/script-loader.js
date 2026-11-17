@@ -1,13 +1,24 @@
-import {Component} from "react"
+import React, {Component} from "react"
 import {withOptions} from "../reader/debug"
 import {LocateScript} from "../resources/lookup"
 import Render from "./parse/render"
 import Tokenize from "./parse/tokenize"
+import "./script-loader.css"
+
+// fetches a script's text, failing on a server error too
+const fetchText = async url => {
+  const response = await fetch(url)
+  if (!response.ok) { // the body is the server's error page, the status says enough
+    throw new Error("server answered " + response.status + " " + (response.statusText || ""))
+  }
+  return response.text()
+}
 
 class ScriptLoader extends Component {
   constructor(props) {
     super(props)
     this.preRender = this.preRender.bind(this)
+    this.load = this.load.bind(this)
 
     this.state = {display: []}
   }
@@ -17,22 +28,15 @@ class ScriptLoader extends Component {
   }
 
   async load() {
-    const scriptFetchPromise = fetch(LocateScript(this.props.storage, this.props.options.lang))
-
-    let macroFile
-    if (!this.props.gameState) {
-      const response = await fetch("/static/scripts/マクロ.ks.gz")
-      macroFile = await response.text()
-      if (!response.ok) {
-        this.setState({display: "failed to load: " + macroFile})
-        return
-      }
-    }
-
-    const response = await scriptFetchPromise
-    const file = await response.text()
-    if (!response.ok) {
-      this.setState({display: "failed to load: " + file})
+    this.setState({error: undefined})
+    let file, macroFile
+    try {
+      [file, macroFile] = await Promise.all([
+        fetchText(LocateScript(this.props.storage, this.props.options.lang)),
+        this.props.gameState ? undefined : fetchText("/static/scripts/マクロ.ks.gz"), // the first scene starts with the macros
+      ])
+    } catch (e) { // offline, or the server answered with an error: worth trying again
+      this.setState({error: {text: "Couldn't load this scene.", detail: e.message, retry: true}})
       return
     }
 
@@ -62,10 +66,16 @@ class ScriptLoader extends Component {
     let start = performance.now()
 
     let tokens = []
-    Tokenize(tokens, gameState, this.props.target)
-    let tokenTime = performance.now()
-
-    const display = Render(tokens, this.props.renderState, this.props.onPageReady, this.props.options.debugLevel)
+    let tokenTime, display
+    try {
+      Tokenize(tokens, gameState, this.props.target)
+      tokenTime = performance.now()
+      display = Render(tokens, this.props.renderState, this.props.onPageReady, this.props.options.debugLevel)
+    } catch (e) { // the script itself is broken, so trying again won't help
+      console.error(e)
+      this.setState({error: {text: "Couldn't read this scene.", detail: e.message}})
+      return
+    }
     let renderTime = performance.now()
 
     console.log("tokenize: " + (tokenTime - start) + "ms  render: " + (renderTime - tokenTime) + "ms")
@@ -81,6 +91,14 @@ class ScriptLoader extends Component {
   }
 
   render() {
+    const error = this.state.error
+    if (error) {
+      return <div className="script-error">
+        <div>{error.text}</div>
+        <pre>{error.detail}</pre>
+        {error.retry && <button className="choice-button" onClick={this.load}>Retry</button>}
+      </div>
+    }
     return this.state.display
   }
 }

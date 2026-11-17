@@ -1,0 +1,10 @@
+.script-error {
+  margin: 2em 0;
+  text-align: center;
+}
+
+.script-error pre {
+  white-space: pre-wrap; /* parse errors are long lines, keep them on a phone screen */
+  font-size: 0.8em;
+  opacity: 0.8;
+}
