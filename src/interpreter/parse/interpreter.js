@@ -1,3 +1,4 @@
+import EvalCondition from "./condition"
 import Tokenize from "./tokenize"
 
 
@@ -6,51 +7,13 @@ const ignoreMacros = {cl_notrans: true}
 // it, so like cl_notrans it goes to the renderer as it is
 const isListRep = tag => tag.command === "rep" && tag.args.storages !== undefined
 
-// macros test and pick their arguments ("mp") with TJS expressions, which are not run
-// these handle the simple forms the game's macros use: comparisons of mp values joined by && and ||
-
-// TJS treats a missing value (void) as equal to ""
-const macroValue = (term, mp) => {
-  const arg = /^mp\.(\w+)$/.exec(term)
-  if (arg) {
-    return mp[arg[1]] === undefined ? "" : String(mp[arg[1]])
-  }
-  if (term === "void") {
-    return ""
-  }
-  const quoted = /^'([^']*)'$|^"([^"]*)"$/.exec(term)
-  if (quoted) {
-    return quoted[1] !== undefined ? quoted[1] : quoted[2]
-  }
-  if (/^-?\d+$/.test(term)) {
-    return term
-  }
-  return undefined
-}
-
-// returns whether a macro argument condition holds, or undefined if it can't tell
-export const evalMacroCondition = (cond, mp) => {
-  let unknown = false
-  const result = cond.split("||").some(either => either.split("&&").every(term => {
-    const comparison = /^\s*(\S+?)\s*(===|!==|==|!=)\s*(\S+?)\s*$/.exec(term)
-    const left = comparison && macroValue(comparison[1], mp)
-    const right = comparison && macroValue(comparison[3], mp)
-    if (left === undefined || right === undefined || left === null) {
-      unknown = true
-      return true
-    }
-    return comparison[2].startsWith("=") ? left === right : left !== right
-  }))
-  return unknown ? undefined : result
-}
-
 // resolves "&(mp.a!=void?mp.b:mp.c)" style values, undefined if it isn't one
 const evalMacroValue = (value, mp) => {
   const choice = /^&\((.+?)\?mp\.(\w+):mp\.(\w+)\)$/.exec(value)
   if (!choice) {
     return undefined
   }
-  const cond = evalMacroCondition(choice[1], mp)
+  const cond = EvalCondition(choice[1], {mp}, true)
   return cond === undefined ? undefined : mp[cond ? choice[2] : choice[3]]
 }
 
@@ -110,7 +73,7 @@ const InterpretCommand = (tokens, gameState, tag) => {
           })
           // skip commands whose condition on the macro's arguments is false
           if (typeof args.cond === "string" && args.cond.includes("mp.")) {
-            if (evalMacroCondition(args.cond, tag.args) === false) {
+            if (EvalCondition(args.cond, {mp: tag.args}, true) === false) {
               return false
             }
           }
